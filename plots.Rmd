@@ -1,0 +1,78 @@
+---
+title: "interventions"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(splitstackshape)
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+# What interventions have been suggested for each phase of adolescence (early, middle, late)?
+interventions_table <- read_csv("interventions_table.csv")
+
+age_groups <- interventions_table %>% 
+  filter(str_detect(participants_age, "^[:digit:]") == TRUE) %>% 
+  filter(!is.na(Category)) %>% 
+  separate(col = participants_age,
+           into = c("min_age", "max_age"),
+           sep = "-",
+           extra = "drop") %>% 
+  mutate(max_age = str_remove_all(max_age, "[^[:digit:]]")) %>% 
+  mutate(min_age = as.numeric(min_age),
+         max_age = as.numeric(max_age)) %>% 
+  filter(max_age < 26)
+
+age_groups %>%
+  mutate(Authors = fct_reorder(Authors, min_age, .desc = TRUE)) %>% 
+  ggplot(aes(x = Authors)) +
+  geom_linerange(aes(ymin = min_age, ymax = max_age, x = Authors, color = Category),
+                 size = 1.5) +
+  geom_point(aes(y = min_age)) +
+  geom_point(aes(y = max_age)) +
+  coord_flip() +
+  geom_hline(yintercept = c(14, 18), linetype = "dashed", alpha = .25) +
+  labs(y = "Participants' age")
+
+```
+
+```{r}
+DVs <- interventions_table %>% 
+  select(Authors, DV) %>% 
+  mutate(DV = strsplit(DV, "; ")) %>%
+  unnest(DV) %>%
+  group_by(Authors) %>%
+  mutate(row = row_number()) %>%
+  spread(row, DV) %>% 
+  pivot_longer(cols = 2:12, names_to = "DV_id", values_to = "DV") %>% 
+  drop_na(DV) %>% 
+  count(DV)
+
+DV_categories <- DVs %>% 
+  mutate(addiction = if_else(str_detect(DV, "addiction"), 1, 0)) %>% 
+  mutate(screen_time = if_else(str_detect(DV, "time|duration|frequency"), 1, 0)) %>% 
+  mutate(affect = if_else(str_detect(DV, "affect"), 1, 0)) %>% 
+  mutate(body_image = if_else(str_detect(DV, "body"), 1, 0)) %>% 
+  mutate(loneliness = if_else(str_detect(DV, "loneliness"), 1, 0)) %>% 
+  mutate(acceptability = if_else(str_detect(DV, "acceptability|helpfulness"), 1, 0))
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
